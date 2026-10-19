@@ -1,0 +1,10 @@
+-r requirements.txt
+
+# Test runner
+pytest==9.1.1
+
+# SAST (static application security testing)
+bandit==1.9.4
+
+# SCA (software composition analysis)
+pip-audit==2.10.1

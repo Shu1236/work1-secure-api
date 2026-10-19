@@ -1,0 +1,10 @@
+# Part B, fixed side: Metabase 0.47.0.
+# 0.47.0 refuses to register H2 as a data warehouse at all
+# ("H2 is not supported as a data warehouse"), which removes the code path
+# the exploit needs. Run on port 3001 to compare side by side.
+services:
+  metabase:
+    image: metabase/metabase:v0.47.0
+    ports:
+      - "3001:3000"
+    container_name: mb-fixed

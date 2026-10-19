@@ -1,0 +1,9 @@
+# Part B, vulnerable side: Metabase 0.46.6 (CVE-2023-38646).
+# The pre-auth setup endpoint of this release forwards attacker-supplied
+# connection details to the H2 driver, which executes them.
+services:
+  metabase:
+    image: metabase/metabase:v0.46.6
+    ports:
+      - "3000:3000"
+    container_name: mb-vulnerable

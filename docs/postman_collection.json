@@ -1,0 +1,222 @@
+{
+  "info": {
+    "name": "Work 1 - Secure API",
+    "description": "Collection for the secure REST API (Flask + SQLite + JWT). Run 'Login' first: it stores the access token in the collection variable 'token', every protected request then uses it. Also contains the SQLi / XSS negative tests used as evidence in the report.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5000" },
+    { "key": "username", "value": "alice" },
+    { "key": "password", "value": "Alice-Str0ng-Pass!" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+      }
+    },
+    {
+      "name": "1. Register user",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"bob\",\n  \"password\": \"Bob-Str0ng-Pass!\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] }
+      }
+    },
+    {
+      "name": "2. Login (stores token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.access_token) {",
+              "  pm.collectionVariables.set('token', body.access_token);",
+              "  pm.test('token issued', () => pm.expect(body.token_type).to.eql('Bearer'));",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "3. Data WITHOUT token (expect 401)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('unauthorized without token', () => pm.response.to.have.status(401));"]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/data", "host": ["{{baseUrl}}"], "path": ["api", "data"] }
+      }
+    },
+    {
+      "name": "4. Data WITH token (expect 200)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/data?limit=2&offset=0",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "data"],
+          "query": [
+            { "key": "limit", "value": "2" },
+            { "key": "offset", "value": "0" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Search (parameterised LIKE)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/data?q=secure",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "data"],
+          "query": [{ "key": "q", "value": "secure" }]
+        }
+      }
+    },
+    {
+      "name": "6. Create post (authenticated write)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"My first post\",\n  \"body\": \"Written over a JWT-protected endpoint.\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/posts", "host": ["{{baseUrl}}"], "path": ["api", "posts"] }
+      }
+    },
+    {
+      "name": "7. Stored XSS payload (expect escaped output)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('script tag is escaped', () => pm.expect(body.post.title).to.include('&lt;script&gt;'));",
+              "pm.test('no raw script tag', () => pm.expect(body.post.title).to.not.include('<script>'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"<script>alert(1)</script>\",\n  \"body\": \"<img src=x onerror=alert(1)>\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/posts", "host": ["{{baseUrl}}"], "path": ["api", "posts"] }
+      }
+    },
+    {
+      "name": "8. SQLi in search - q=' OR 1=1 -- (expect 0 rows)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('injection returned no rows', () => pm.expect(pm.response.json().count).to.eql(0));"]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/data?q=%27%20OR%201%3D1%20--",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "data"],
+          "query": [{ "key": "q", "value": "' OR 1=1 --" }]
+        }
+      }
+    },
+    {
+      "name": "9. SQLi in login (expect 400/401, never 200)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('injection login rejected', () => pm.expect(pm.response.code).to.be.oneOf([400, 401]));",
+              "pm.test('no token leaked', () => pm.expect(pm.response.text()).to.not.include('access_token'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"alice' OR '1'='1\",\n  \"password\": \"x\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+      }
+    },
+    {
+      "name": "10. Me (profile + token claims)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": { "raw": "{{baseUrl}}/api/me", "host": ["{{baseUrl}}"], "path": ["api", "me"] }
+      }
+    },
+    {
+      "name": "11. Tampered token (expect 401)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('tampered token rejected', () => pm.response.to.have.status(401));"]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer not.a.token" }],
+        "url": { "raw": "{{baseUrl}}/api/data", "host": ["{{baseUrl}}"], "path": ["api", "data"] }
+      }
+    }
+  ]
+}

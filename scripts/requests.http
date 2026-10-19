@@ -1,0 +1,74 @@
+# Requests for VS Code "REST Client" or JetBrains HTTP Client.
+# Run them top to bottom; the login response token has to be copied into @token.
+
+@base = http://127.0.0.1:5000
+@token = paste-access-token-here
+
+### 0. Health (public)
+GET {{base}}/health
+
+### 1. Register a user
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "bob",
+  "password": "Bob-Str0ng-Pass!"
+}
+
+### 2. Login - returns the JWT
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "password": "Alice-Str0ng-Pass!"
+}
+
+### 3. Protected endpoint WITHOUT a token -> 401
+GET {{base}}/api/data
+
+### 4. Protected endpoint WITH the token -> 200
+GET {{base}}/api/data?limit=10&offset=0
+Authorization: Bearer {{token}}
+
+### 5. Search (parameterised LIKE) -> 200
+GET {{base}}/api/data?q=secure
+Authorization: Bearer {{token}}
+
+### 6. Create a post (authenticated write)
+POST {{base}}/api/posts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "My first post",
+  "body": "Written over a JWT-protected endpoint."
+}
+
+### 7. XSS payload gets escaped on the way out
+POST {{base}}/api/posts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "<script>alert('xss')</script>",
+  "body": "<img src=x onerror=alert(1)>"
+}
+
+### 8. Who am I + verified token claims
+GET {{base}}/api/me
+Authorization: Bearer {{token}}
+
+### 9. SQL injection attempt in the login body -> 401
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "alice' OR '1'='1",
+  "password": "x"
+}
+
+### 10. SQL injection attempt in the search parameter -> 200, zero rows
+GET {{base}}/api/data?q=%27%20OR%201%3D1%20--
+Authorization: Bearer {{token}}
